@@ -24,5 +24,6 @@ document.addEventListener('DOMContentLoaded', () => {
   RenderRouth.init(document.getElementById('routh-app'));
   RenderPID.init(document.getElementById('pid-app'));
   RenderZN1.init(document.getElementById('zn1-app'));
-  
+  RenderZN2.init(document.getElementById('zn2-app'));  // ← baris ini yang hilang!
+
 });

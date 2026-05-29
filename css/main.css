@@ -16,8 +16,8 @@
   --green:       #39ff14;
   --red:         #ff2d55;
   --yellow:      #ffe93d;
-  --font-mono:   'Share Tech Mono', monospace;
-  --font-ui:     'Exo 2', sans-serif;
+  --font-mono:   'Times New Roman', Times, serif;
+  --font-ui:     'Times New Roman', Times, serif;
   --radius:      4px;
   --glow:        0 0 18px rgba(0,255,231,0.3);
   --glow-hot:    0 0 30px rgba(0,255,231,0.6);
