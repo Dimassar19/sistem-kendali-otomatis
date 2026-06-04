@@ -1,6 +1,11 @@
 /**
  * calc-routh.js — Routh-Hurwitz Stability Criterion Calculator
  * Separation of concerns: PURE MATH ONLY — no DOM access
+ *
+ * PERBAIKAN v2:
+ *  - Catatan (notes) kini muncul untuk semua kasus tidak stabil
+ *  - Penjelasan perubahan tanda dan akar RHP ditambahkan
+ *  - Catatan syarat perlu juga muncul saat koefisien tidak setanda
  */
 
 const CalcRouth = (() => {
@@ -49,19 +54,10 @@ const CalcRouth = (() => {
           const auxRow = _auxiliaryDerivative(prev2, order - i + 2);
           notes.push(`Baris ${i - 1} seluruhnya nol — gunakan polinomial bantu (auxiliary polynomial) berorde ${order - i + 2}.`);
           table[i - 1] = auxRow.slice(0, cols);
-          // Recalculate newRow with updated prev1
-          const updatedPrev1 = table[i - 1];
-          const pivot2 = updatedPrev1[0];
-          for (let j = 0; j < cols - 1; j++) {
-            newRow.push(
-              (pivot2 * prev2[j + 1] - prev2[0] * updatedPrev1[j + 1]) / pivot2
-            );
-          }
-          newRow.unshift(0); // first element placeholder
           newRow = _computeRow(table[i - 1], prev2);
         } else {
           // Replace pivot with ε (small positive number)
-          notes.push(`Elemen pertama baris ${i - 1} = 0 → diganti dengan ε (epsilon kecil positif).`);
+          notes.push(`Elemen pertama baris ke-${i - 1} (s^${order - i + 1}) = 0 → diganti dengan ε (epsilon kecil positif) untuk melanjutkan perhitungan.`);
           const epsilon = 1e-7;
           const modPrev1 = [epsilon, ...prev1.slice(1)];
           newRow = _computeRow(modPrev1, prev2);
@@ -84,14 +80,67 @@ const CalcRouth = (() => {
     const allNegative = coeffs.every(c => c < 0);
     const necessaryMet = allPositive || allNegative;
 
+    // ── Tentukan Status & Tambahkan Catatan ──
     let status;
+
     if (signChanges === 0 && necessaryMet) {
+      // ── STABIL ──
       status = 'STABIL';
+      // Tidak perlu catatan khusus jika benar-benar stabil
+
     } else if (signChanges === 0 && !necessaryMet) {
+      // ── MARGINAL / TAK STABIL — syarat perlu gagal, tapi kolom 1 tidak berubah tanda ──
       status = 'MARGINAL / TAK STABIL';
-      notes.push('Syarat perlu tidak terpenuhi: tidak semua koefisien bertanda sama.');
+      notes.push(
+        'Syarat perlu tidak terpenuhi: tidak semua koefisien polinomial bertanda sama. ' +
+        'Sistem dipastikan tidak stabil atau marginal tanpa perlu melanjutkan analisis tabel.'
+      );
+
     } else {
+      // ── TIDAK STABIL — ada perubahan tanda pada kolom pertama ──
       status = 'TIDAK STABIL';
+
+      notes.push(
+        `Terdapat ${signChanges} perubahan tanda pada kolom pertama tabel Routh → ` +
+        `sistem memiliki ${signChanges} akar di Right Half Plane (RHP). ` +
+        `Sistem closed-loop TIDAK STABIL.`
+      );
+
+      if (!necessaryMet) {
+        // Cari koefisien mana yang bermasalah
+        const negCoeffs = coeffs
+          .map((c, i) => ({ exp: order - i, val: c }))
+          .filter(({ val }) => val < 0 || val === 0);
+
+        const detailList = negCoeffs
+          .map(({ exp, val }) => `a${exp}=${Utils.fmt(val, 4)} (s^${exp})`)
+          .join(', ');
+
+        notes.push(
+          `Syarat perlu tidak terpenuhi: koefisien berikut bertanda negatif atau nol → [${detailList}]. ` +
+          `Semua koefisien harus bertanda sama (semua positif atau semua negatif) agar sistem berpeluang stabil.`
+        );
+      }
+
+      // Identifikasi baris mana saja yang menyebabkan perubahan tanda
+      const signChangeRows = [];
+      const nonzeroCol = firstCol.filter(v => !Utils.isZero(v));
+      const labels_temp = [];
+      for (let i = order; i >= 0; i--) labels_temp.push(`s^${i}`);
+
+      for (let i = 1; i < firstCol.length; i++) {
+        const prev = firstCol[i - 1];
+        const curr = firstCol[i];
+        if (!Utils.isZero(prev) && !Utils.isZero(curr) && prev * curr < 0) {
+          signChangeRows.push(
+            `Perubahan tanda: ${labels_temp[i - 1]} (${Utils.fmt(prev, 4)}) → ${labels_temp[i]} (${Utils.fmt(curr, 4)})`
+          );
+        }
+      }
+
+      if (signChangeRows.length > 0) {
+        notes.push('Detail perubahan tanda pada kolom 1: ' + signChangeRows.join(' | '));
+      }
     }
 
     // Labels: s^n, s^{n-1}, ..., s^0

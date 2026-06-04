@@ -1,16 +1,16 @@
 /**
- * background.js — Animated canvas background (particles + grid lines)
+ * background.js — Animated canvas background (light theme)
+ * Particles using soft blue tones for light background
  */
 
 (function () {
   const canvas = document.getElementById('bgCanvas');
   if (!canvas) return;
   const ctx = canvas.getContext('2d');
-
   let W, H, particles = [], animId;
 
-  const PARTICLE_COUNT = 60;
-  const COLOR = '0,255,231';
+  const PARTICLE_COUNT = 50;
+  const COLOR = '37,99,235';   // blue-600 — matches accent1
 
   function resize() {
     W = canvas.width  = window.innerWidth;
@@ -21,10 +21,10 @@
     return {
       x:  Math.random() * W,
       y:  Math.random() * H,
-      vx: (Math.random() - 0.5) * 0.4,
-      vy: (Math.random() - 0.5) * 0.4,
-      r:  Math.random() * 1.5 + 0.5,
-      a:  Math.random() * 0.5 + 0.1,
+      vx: (Math.random() - 0.5) * 0.3,
+      vy: (Math.random() - 0.5) * 0.3,
+      r:  Math.random() * 2 + 0.5,
+      a:  Math.random() * 0.25 + 0.05,
     };
   }
 
@@ -36,17 +36,17 @@
   function draw() {
     ctx.clearRect(0, 0, W, H);
 
-    // Draw connections
+    // Connections
     for (let i = 0; i < particles.length; i++) {
       for (let j = i + 1; j < particles.length; j++) {
         const dx = particles[i].x - particles[j].x;
         const dy = particles[i].y - particles[j].y;
         const dist = Math.sqrt(dx * dx + dy * dy);
-        if (dist < 130) {
-          const alpha = (1 - dist / 130) * 0.12;
+        if (dist < 140) {
+          const alpha = (1 - dist / 140) * 0.08;
           ctx.beginPath();
           ctx.strokeStyle = `rgba(${COLOR},${alpha})`;
-          ctx.lineWidth = 0.7;
+          ctx.lineWidth = 0.8;
           ctx.moveTo(particles[i].x, particles[i].y);
           ctx.lineTo(particles[j].x, particles[j].y);
           ctx.stroke();
@@ -54,7 +54,7 @@
       }
     }
 
-    // Draw particles
+    // Particles
     particles.forEach(p => {
       ctx.beginPath();
       ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);

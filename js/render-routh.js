@@ -1,67 +1,72 @@
 /**
- * render-routh.js — UI renderer for Routh-Hurwitz tab
+ * render-routh.js — UI Renderer for Routh-Hurwitz tab
+ * Separation of concerns: DOM RENDERING ONLY
+ * Updated for light theme — no dark color overrides
  */
 
 const RenderRouth = (() => {
 
   function init(container) {
     Utils.clear(container);
-
     container.innerHTML = `
       <div class="calc-container">
 
-        <!-- INPUT PANEL -->
+        <!-- ── INPUT PANEL ── -->
         <div class="panel-card">
-          <div class="panel-title">⬡ Input Koefisien Polinomial</div>
+          <div class="panel-title">⬡ Input Polinomial Karakteristik</div>
           <div class="info-strip">
-            Masukkan koefisien karakteristik polinomial <strong>a(s) = aₙsⁿ + ... + a₁s + a₀</strong>
-            dari pangkat tertinggi ke terendah, dipisah spasi atau koma.
+            Masukkan koefisien polinomial karakteristik dari <strong>orde tertinggi ke terendah</strong>.
+            Contoh: s³ + 6s² + 11s + 6 → <strong>1, 6, 11, 6</strong>
           </div>
 
           <div class="field-group">
-            <label class="field-label">Koefisien (dari sⁿ → s⁰)</label>
-            <input class="field-input" id="routh-coeffs" type="text"
-              placeholder="contoh: 1 2 3 4  atau  1, 6, 11, 6, 1" />
-            <div class="field-hint">Contoh: s³+6s²+11s+6 → masukkan: 1 6 11 6</div>
+            <label class="field-label">Orde Polinomial</label>
+            <select class="field-select" id="routh-order">
+              <option value="2">Orde 2</option>
+              <option value="3" selected>Orde 3</option>
+              <option value="4">Orde 4</option>
+              <option value="5">Orde 5</option>
+              <option value="6">Orde 6</option>
+            </select>
           </div>
+
+          <div id="routh-coeff-fields"></div>
 
           <div style="display:flex;gap:.5rem;flex-wrap:wrap;">
             <button class="btn-calc" id="routh-calc-btn">▶ HITUNG</button>
             <button class="btn-reset" id="routh-reset-btn">↺ Reset</button>
           </div>
 
-          <!-- Quick examples -->
           <div style="margin-top:1.2rem;">
             <div class="field-label">Contoh Cepat:</div>
-            <div style="display:flex;flex-wrap:wrap;gap:.4rem;margin-top:.4rem;">
-              <button class="btn-example" data-val="1 6 11 6">Orde 3 (Stabil)</button>
-              <button class="btn-example" data-val="1 1 2 24">Orde 3 (Tidak Stabil)</button>
-              <button class="btn-example" data-val="1 2 3 4 5">Orde 4</button>
-              <button class="btn-example" data-val="1 0 1">Marginal</button>
+            <div style="display:flex;flex-wrap:wrap;gap:.4rem;margin-top:.4rem;" id="routh-examples">
+              <button class="btn-example" data-coeffs="1,6,11,6">Stabil: 1,6,11,6</button>
+              <button class="btn-example" data-coeffs="1,1,-1,1">Tidak Stabil</button>
+              <button class="btn-example" data-coeffs="1,2,3,4,5">Orde 4: 1,2,3,4,5</button>
             </div>
           </div>
         </div>
 
-        <!-- RESULT: STATUS -->
-        <div class="panel-card" id="routh-status-card">
+        <!-- ── RESULT: STATUS ── -->
+        <div class="panel-card">
           <div class="panel-title">◈ Status Kestabilan</div>
           <div class="result-box" id="routh-status-box">
             <div class="result-empty">— Masukkan koefisien dan tekan HITUNG —</div>
           </div>
         </div>
 
-        <!-- RESULT: ROUTH TABLE -->
-        <div class="panel-card full-width" id="routh-table-card">
-          <div class="panel-title">◫ Tabel Routh-Hurwitz</div>
-          <div class="result-box" id="routh-table-box" style="min-height:80px;">
+        <!-- ── ROUTH TABLE ── -->
+        <div class="panel-card full-width">
+          <div class="panel-title">⊞ Tabel Routh-Hurwitz</div>
+          <div class="result-box" id="routh-table-box" style="min-height:100px; overflow-x:auto;">
             <div class="result-empty">— Belum ada data —</div>
           </div>
         </div>
 
-        <!-- RESULT: ANALYSIS -->
-        <div class="panel-card full-width" id="routh-analysis-card">
-          <div class="panel-title">◉ Analisis Lengkap</div>
-          <div class="result-box" id="routh-analysis-box" style="min-height:80px;">
+        <!-- ── NOTES ── -->
+        <div class="panel-card full-width">
+          <div class="panel-title">📝 Catatan & Kasus Khusus</div>
+          <div class="result-box" id="routh-notes-box" style="min-height:60px;">
             <div class="result-empty">— Belum ada data —</div>
           </div>
         </div>
@@ -69,172 +74,147 @@ const RenderRouth = (() => {
       </div>
     `;
 
-    // Add example button styles inline
-    container.querySelectorAll('.btn-example').forEach(btn => {
-      btn.style.cssText = `
-        font-family:var(--font-mono);font-size:.7rem;padding:.35rem .8rem;
-        background:rgba(0,255,231,.07);border:1px solid var(--border);
-        color:var(--text-dim);cursor:pointer;border-radius:var(--radius);
-        transition:all .2s;letter-spacing:.06em;
-      `;
-      btn.addEventListener('mouseenter', () => {
-        btn.style.borderColor = 'var(--accent1)';
-        btn.style.color = 'var(--accent1)';
-      });
-      btn.addEventListener('mouseleave', () => {
-        btn.style.borderColor = 'var(--border)';
-        btn.style.color = 'var(--text-dim)';
-      });
+    // Build coefficient fields on order change
+    function buildFields(order) {
+      const container = document.getElementById('routh-coeff-fields');
+      container.innerHTML = '';
+      const row = document.createElement('div');
+      row.className = 'field-row';
+      row.style.gridTemplateColumns = `repeat(${Math.min(order + 1, 4)}, 1fr)`;
+
+      for (let i = order; i >= 0; i--) {
+        const group = document.createElement('div');
+        group.className = 'field-group';
+        group.innerHTML = `
+          <label class="field-label">a${i} (s^${i})</label>
+          <input class="field-input" id="routh-a${i}" type="number" step="any" placeholder="0" />
+        `;
+        row.appendChild(group);
+      }
+      container.appendChild(row);
+    }
+
+    const orderSel = document.getElementById('routh-order');
+    orderSel.addEventListener('change', () => buildFields(parseInt(orderSel.value)));
+    buildFields(parseInt(orderSel.value));
+
+    // Example buttons
+    container.querySelectorAll('#routh-examples .btn-example').forEach(btn => {
       btn.addEventListener('click', () => {
-        document.getElementById('routh-coeffs').value = btn.dataset.val;
+        const coeffs = btn.dataset.coeffs.split(',').map(Number);
+        const order  = coeffs.length - 1;
+        orderSel.value = String(order);
+        buildFields(order);
+        coeffs.forEach((v, idx) => {
+          const exp = order - idx;
+          const el = document.getElementById(`routh-a${exp}`);
+          if (el) el.value = v;
+        });
       });
     });
 
     document.getElementById('routh-calc-btn').addEventListener('click', runCalc);
-    document.getElementById('routh-reset-btn').addEventListener('click', resetAll);
-
-    document.getElementById('routh-coeffs').addEventListener('keydown', e => {
-      if (e.key === 'Enter') runCalc();
+    document.getElementById('routh-reset-btn').addEventListener('click', () => {
+      buildFields(parseInt(orderSel.value));
+      ['routh-status-box','routh-table-box','routh-notes-box'].forEach(id => {
+        document.getElementById(id).innerHTML = `<div class="result-empty">— Belum ada data —</div>`;
+      });
     });
   }
 
+  // ─────────────────────────────────────────────
   function runCalc() {
-    const raw    = document.getElementById('routh-coeffs').value;
-    const coeffs = Utils.parseCoeffs(raw);
-
-    if (coeffs.length < 2) {
-      showError('Masukkan minimal 2 koefisien yang valid.');
-      return;
+    const order = parseInt(document.getElementById('routh-order').value);
+    const coeffs = [];
+    for (let i = order; i >= 0; i--) {
+      const v = parseFloat(document.getElementById(`routh-a${i}`).value);
+      coeffs.push(isNaN(v) ? 0 : v);
     }
+
+    if (coeffs.every(c => c === 0)) { showError('Semua koefisien nol.'); return; }
 
     const res = CalcRouth.compute(coeffs);
-
-    if (res.error) {
-      showError(res.error);
-      return;
-    }
+    if (res.error) { showError(res.error); return; }
 
     renderStatus(res);
     renderTable(res);
-    renderAnalysis(res, coeffs);
+    renderNotes(res);
   }
 
   function renderStatus(res) {
     const box = document.getElementById('routh-status-box');
-    let badgeClass = 'marginal';
-    let icon = '◈';
-    if (res.status === 'STABIL')        { badgeClass = 'stable';   icon = '✔'; }
-    if (res.status === 'TIDAK STABIL')  { badgeClass = 'unstable'; icon = '✖'; }
+    const cls = res.status === 'STABIL' ? 'stable' : res.status.includes('MARGINAL') ? 'marginal' : 'unstable';
+    const icon = { stable: '✔', unstable: '✖', marginal: '⚠' }[cls];
 
     box.innerHTML = `
-      <div class="status-badge ${badgeClass}">${icon} ${res.status}</div>
+      <div class="status-badge ${cls}">${icon} ${res.status}</div>
       <div class="result-row">
-        <span class="result-key">Orde Sistem</span>
-        <span class="result-val">n = ${res.order}</span>
+        <span class="result-key">Orde Polinomial</span>
+        <span class="result-val">${res.order}</span>
       </div>
       <div class="result-row">
-        <span class="result-key">Akar di RHP (tidak stabil)</span>
-        <span class="result-val ${res.rhpRoots > 0 ? 'error' : 'success'}">${res.rhpRoots}</span>
-      </div>
-      <div class="result-row">
-        <span class="result-key">Perubahan tanda (kolom 1)</span>
+        <span class="result-key">Perubahan Tanda (Kolom 1)</span>
         <span class="result-val ${res.signChanges > 0 ? 'error' : 'success'}">${res.signChanges}</span>
       </div>
       <div class="result-row">
-        <span class="result-key">Syarat Perlu (semua koef. bertanda sama)</span>
-        <span class="result-val ${res.necessaryCondition ? 'success' : 'warn'}">
-          ${res.necessaryCondition ? '✔ Terpenuhi' : '✖ Tidak Terpenuhi'}
-        </span>
+        <span class="result-key">Akar di RHP</span>
+        <span class="result-val ${res.rhpRoots > 0 ? 'error' : 'success'}">${res.rhpRoots}</span>
       </div>
-      ${res.notes.length ? `
-        <div style="margin-top:.8rem;padding-top:.8rem;border-top:1px solid var(--border);">
-          ${res.notes.map(n => `
-            <div style="color:var(--yellow);font-size:.74rem;line-height:1.5;margin-bottom:.4rem;">⚠ ${n}</div>
-          `).join('')}
-        </div>
-      ` : ''}
+      <div class="result-row">
+        <span class="result-key">Syarat Perlu (semua koef. setanda)</span>
+        <span class="result-val ${res.necessaryCondition ? 'success' : 'warn'}">${res.necessaryCondition ? 'Terpenuhi ✔' : 'Tidak Terpenuhi ✖'}</span>
+      </div>
     `;
   }
 
   function renderTable(res) {
     const box = document.getElementById('routh-table-box');
+    const { table, labels, firstCol } = res;
+    const cols = Math.max(...table.map(r => r.length));
 
-    // Determine sign-change rows (compare consecutive first-col signs)
-    const fc = res.firstCol;
+    // Detect sign changes
     const signChangeRows = new Set();
-    const nonzero = fc.map((v, i) => ({ v, i })).filter(x => !Utils.isZero(x.v));
-    for (let k = 1; k < nonzero.length; k++) {
-      if (nonzero[k].v * nonzero[k - 1].v < 0) {
-        signChangeRows.add(nonzero[k].i);
-      }
+    for (let i = 1; i < firstCol.length; i++) {
+      if (firstCol[i] * firstCol[i - 1] < 0) signChangeRows.add(i);
     }
 
-    let html = `<div style="overflow-x:auto;">
-      <table class="routh-table">
-        <thead>
-          <tr>
-            <th>Baris</th>
-            ${res.table[0].map((_, j) => `<th>Kolom ${j + 1}</th>`).join('')}
-            <th>Kolom 1 (±)</th>
-          </tr>
-        </thead>
-        <tbody>
-    `;
+    let html = `<table class="routh-table"><thead><tr><th>Baris</th>`;
+    for (let j = 0; j < cols; j++) html += `<th>Kolom ${j + 1}</th>`;
+    html += `</tr></thead><tbody>`;
 
-    res.table.forEach((row, i) => {
-      const isChange = signChangeRows.has(i);
-      html += `<tr ${isChange ? 'class="sign-change"' : ''}>
-        <td class="row-label">${res.labels[i]}</td>
-        ${row.map(v => `<td>${Utils.fmt(v)}</td>`).join('')}
-        <td style="color:${fc[i] > 0 ? 'var(--green)' : fc[i] < 0 ? 'var(--red)' : 'var(--yellow)'}">
-          ${fc[i] > 0 ? '+' : fc[i] < 0 ? '−' : '0'}
-        </td>
-      </tr>`;
+    table.forEach((row, i) => {
+      const cls = signChangeRows.has(i) ? 'sign-change' : '';
+      html += `<tr class="${cls}"><td class="row-label">${labels[i]}</td>`;
+      for (let j = 0; j < cols; j++) {
+        const v = row[j] ?? 0;
+        const formatted = Math.abs(v) < 1e-9 ? '0' : Utils.fmt(v);
+        html += `<td>${formatted}</td>`;
+      }
+      html += `</tr>`;
     });
 
-    html += `</tbody></table></div>`;
+    html += `</tbody></table>`;
     box.innerHTML = html;
   }
 
-  function renderAnalysis(res, coeffs) {
-    const box = document.getElementById('routh-analysis-box');
-    box.innerHTML = `
-      <div class="result-row">
-        <span class="result-key">Koefisien Input</span>
-        <span class="result-val">[${coeffs.join(', ')}]</span>
-      </div>
-      <div class="result-row">
-        <span class="result-key">Kolom Pertama Routh</span>
-        <span class="result-val">[${res.firstCol.map(v => Utils.fmt(v)).join(', ')}]</span>
-      </div>
-      <div class="result-row">
-        <span class="result-key">Kesimpulan</span>
-        <span class="result-val ${res.status === 'STABIL' ? 'success' : 'error'}">
-          ${res.status === 'STABIL'
-            ? 'Semua akar berada di LHP → Sistem STABIL'
-            : res.rhpRoots + ' akar di RHP → Sistem TIDAK STABIL'}
-        </span>
-      </div>
-      <div style="margin-top:1rem;" class="formula-box">
-        <strong>Syarat Routh-Hurwitz:</strong><br>
-        1. Syarat Perlu: Semua koefisien harus ada dan bertanda sama.<br>
-        2. Syarat Cukup: Semua elemen kolom pertama Tabel Routh bertanda sama (tidak ada perubahan tanda).<br>
-        3. Jumlah perubahan tanda = jumlah akar di Right Half Plane (RHP).
-      </div>
-    `;
+  function renderNotes(res) {
+    const box = document.getElementById('routh-notes-box');
+    if (!res.notes || res.notes.length === 0) {
+      box.innerHTML = `<div class="result-empty">Tidak ada kasus khusus.</div>`;
+      return;
+    }
+    box.innerHTML = res.notes.map(n => `
+      <div class="result-row" style="align-items:flex-start;">
+        <span style="color:#d97706;margin-right:.5rem;margin-top:.1rem;">⚠</span>
+        <span style="color:var(--text-main);font-size:.83rem;line-height:1.5;">${n}</span>
+      </div>`).join('');
   }
 
   function showError(msg) {
-    const box = document.getElementById('routh-status-box');
-    box.innerHTML = `<div class="result-val error" style="padding:.5rem;">✖ Error: ${msg}</div>`;
-    document.getElementById('routh-table-box').innerHTML     = `<div class="result-empty">—</div>`;
-    document.getElementById('routh-analysis-box').innerHTML  = `<div class="result-empty">—</div>`;
-  }
-
-  function resetAll() {
-    document.getElementById('routh-coeffs').value = '';
-    ['routh-status-box', 'routh-table-box', 'routh-analysis-box'].forEach(id => {
-      document.getElementById(id).innerHTML = `<div class="result-empty">— Belum ada data —</div>`;
+    ['routh-status-box','routh-table-box','routh-notes-box'].forEach(id => {
+      document.getElementById(id).innerHTML = id === 'routh-status-box'
+        ? `<div class="result-val error">✖ ${msg}</div>`
+        : `<div class="result-empty">—</div>`;
     });
   }
 

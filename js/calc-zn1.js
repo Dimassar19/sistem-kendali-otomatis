@@ -21,15 +21,16 @@ const CalcZN1 = (() => {
    * @param {number} stepAmplitude - Amplitude of step input (default 1)
    */
   function compute(K, L, T, stepAmplitude = 1) {
-    if (L <= 0)    return { error: 'Dead time (L) harus > 0.' };
-    if (T <= 0)    return { error: 'Time constant (T) harus > 0.' };
-    if (K === 0)   return { error: 'Process gain (K) tidak boleh 0.' };
+    if (L <= 0)  return { error: 'Dead time (L) harus > 0.' };
+    if (T <= 0)  return { error: 'Time constant (T) harus > 0.' };
+    if (K === 0) return { error: 'Process gain (K) tidak boleh 0.' };
 
-    const R   = K / T;           // reaction rate (slope at inflection / step)
-    const a   = L / T;           // normalized dead time ratio
-    const S   = R * stepAmplitude; // slope of reaction curve = ΔOutput/(ΔInput × T) × step
+    const R = K / T;             // reaction rate (slope at inflection / step)
+    const a = L / T;             // normalized dead time ratio
+    const S = R * stepAmplitude; // slope of reaction curve
 
     // ---- ZN1 Tuning Formulas (Cohen-Coon basis) ----
+
     // P Controller
     const P_Kp = T / (K * L);
 
@@ -54,17 +55,17 @@ const CalcZN1 = (() => {
     // Controllability ratio (dimensionless): a = L/T
     // a < 0.1 → very controllable, a > 1 → difficult
     let controllability;
-    if (a < 0.1)       controllability = 'SANGAT MUDAH dikendalikan (a < 0.1)';
-    else if (a < 0.3)  controllability = 'MUDAH dikendalikan (0.1 ≤ a < 0.3)';
-    else if (a < 0.6)  controllability = 'SEDANG (0.3 ≤ a < 0.6)';
-    else if (a < 1.0)  controllability = 'SULIT dikendalikan (0.6 ≤ a < 1.0)';
-    else               controllability = 'SANGAT SULIT dikendalikan (a ≥ 1.0)';
+    if (a < 0.1)      controllability = 'SANGAT MUDAH dikendalikan (a < 0.1)';
+    else if (a < 0.3) controllability = 'MUDAH dikendalikan (0.1 ≤ a < 0.3)';
+    else if (a < 0.6) controllability = 'SEDANG (0.3 ≤ a < 0.6)';
+    else if (a < 1.0) controllability = 'SULIT dikendalikan (0.6 ≤ a < 1.0)';
+    else              controllability = 'SANGAT SULIT dikendalikan (a ≥ 1.0)';
 
     // Recommended controller type
     let recommendation;
-    if (a < 0.2)       recommendation = 'P atau PI sudah memadai';
-    else if (a < 0.5)  recommendation = 'PI atau PID disarankan';
-    else               recommendation = 'PID dengan anti-windup sangat disarankan';
+    if (a < 0.2)      recommendation = 'P atau PI sudah memadai';
+    else if (a < 0.5) recommendation = 'PI atau PID disarankan';
+    else              recommendation = 'PID dengan anti-windup sangat disarankan';
 
     // Settling time estimate for ZN-tuned PID (rough)
     const settlingTime_est = PID_Ti + L;
@@ -74,12 +75,12 @@ const CalcZN1 = (() => {
 
     return {
       // Input parameters echoed
-      processGain: Utils.round(K, 6),
-      deadTime:    Utils.round(L, 6),
-      timeConst:   Utils.round(T, 6),
+      processGain:  Utils.round(K, 6),
+      deadTime:     Utils.round(L, 6),
+      timeConst:    Utils.round(T, 6),
       reactionRate: Utils.round(R, 6),
       normalizedDT: Utils.round(a, 4),
-      slope_S:     Utils.round(S, 6),
+      slope_S:      Utils.round(S, 6),
 
       // P
       P: {
@@ -118,25 +119,55 @@ const CalcZN1 = (() => {
   }
 
   /**
-   * Estimate K, L, T from two points on the reaction curve
+   * Estimate K, L, T from two points on the reaction curve (tangent line method)
    * Point 1: (t1, y1) — tangent line start
    * Point 2: (t2, y2) — tangent line end
-   * stepInput: amplitude of the step
-   * finalValue: steady-state output change
+   * stepInput  : amplitude of the step
+   * finalValue : steady-state output change
    */
   function computeFromCurve(t1, y1, t2, y2, stepInput, finalValue) {
-    if (t2 <= t1) return { error: 't2 harus > t1' };
+    if (t2 <= t1)     return { error: 't2 harus > t1' };
     if (stepInput === 0) return { error: 'Step input tidak boleh 0' };
 
-    const slope  = (y2 - y1) / (t2 - t1);  // tangent slope (output units / time)
-    const K      = finalValue / stepInput;   // static gain
-    const T      = finalValue / slope;       // time constant from tangent
-    // Tangent line: y = slope*(t - t1) + y1, find where it crosses y=0 → dead time
-    const L_raw  = t1 - y1 / slope;
-    const L      = Math.max(0, L_raw);
+    const slope = (y2 - y1) / (t2 - t1); // tangent slope (output units / time)
+    const K     = finalValue / stepInput; // static gain
+    const T     = finalValue / slope;     // time constant from tangent
+    // Tangent line: y = slope*(t - t1) + y1
+    // Crosses y=0 at: t = t1 - y1/slope  → dead time
+    const L_raw = t1 - y1 / slope;
+    const L     = Math.max(0, L_raw);
 
-    return { K: Utils.round(K, 4), L: Utils.round(L, 4), T: Utils.round(T, 4) };
+    return {
+      K: Utils.round(K, 4),
+      L: Utils.round(L, 4),
+      T: Utils.round(T, 4),
+    };
   }
 
-  return { compute, computeFromCurve };
+  /**
+   * Hitung L dan T dari tiga titik waktu pada grafik respons tangga
+   * @param {number} t0 - Waktu awal (detik)
+   * @param {number} t1 - Titik infleksi bawah / akhir dead time (detik)
+   * @param {number} t2 - Titik infleksi atas / akhir time constant (detik)
+   *
+   * Rumus:
+   *   L = T1 − T0  (dead time)
+   *   T = T2 − T1  (time constant)
+   */
+  function computeFromT0T1T2(t0, t1, t2) {
+    if (t1 <= t0) return { error: 'T1 harus > T0' };
+    if (t2 <= t1) return { error: 'T2 harus > T1' };
+
+    const L = t1 - t0;
+    const T = t2 - t1;
+
+    return {
+      L: Utils.round(L, 4),
+      T: Utils.round(T, 4),
+    };
+  }
+
+  // ── Public API ──
+  return { compute, computeFromCurve, computeFromT0T1T2 };
+
 })();
